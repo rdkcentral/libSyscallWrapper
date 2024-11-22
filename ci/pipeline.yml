@@ -1,0 +1,138 @@
+resource_types:
+- name: checkmarx
+  source:
+    repository: hub.comcast.net/devsecops/checkmarx-resource
+  type: docker-image
+
+- name: pull-request
+  type: registry-image
+  source:
+    repository: teliaoss/github-pr-resource
+  
+
+- name: whitesource
+  source:
+    repository: hub.comcast.net/devsecops/whitesource-resource
+  type: docker-image
+
+
+resources:
+- icon: security
+  name: checkmarx
+  source:
+    password: ((rdke-github-enterprise.password))
+    user: Active Directory\((rdke-github-enterprise.username))
+  type: checkmarx
+
+- icon: github
+  type: git
+  name: libSyscallWrapper
+  source:
+    branch: main
+    password: ((rdke-github-enterprise.access-token))
+    uri: https://github.com/rdk-e/libSyscallWrapper.git
+    username: ((rdke-github-enterprise.username))
+
+- name: pull-request
+  type: pull-request
+  check_every: 5m0s
+  source:
+    access_token: ((rdke-github-enterprise.access-token))
+    repository: rdk-e/libSyscallWrapper
+    v3_endpoint: https://api.github.com
+    v4_endpoint: https://api.github.com/graphql
+
+
+- check_every: 168h0m0s
+  icon: security
+  name: whitesource
+  source:
+    apiKey: ((whitesource.apiKey))
+    checkPolicies: true
+    includes: '**/*.m **/*.c **/*.h'
+    productName: libSyscallWrapper
+    resolveAllDependencies: true
+  type: whitesource
+
+
+groups:
+- jobs:
+  - l1-l2-test
+  name: pull-request
+
+- jobs:
+  - security-gate
+  name: security
+
+
+jobs:
+- name: security-gate
+  public: true
+  plan:
+  - get: libSyscallWrapper
+  - in_parallel:
+      steps:
+      - params:
+          config:
+            projectName: pre-build-scan
+          dir:
+          - libSyscallWrapper
+        put: whitesource
+      - params:
+          dir: libSyscallWrapper
+          full_scan: true
+          preset: High and Medium
+          project_name: CxServer\Comcast-NBCUniversal\Comcast\RDKE Build Tools\libSyscallWrapper
+        put: checkmarx
+  
+- name: l1-l2-test
+  public: true
+  plan:
+  - get: pull-request
+    trigger: true
+    version: every
+  - put: pull-request
+    params:
+      path: pull-request
+      status: PENDING
+
+  - task: run-ci
+    privileged: true
+    config:
+      platform: linux
+      image_resource:
+        type: registry-image
+        source:
+          repository: hub.comcast.net/rdke-builds/ci-container-image
+          tag: latest
+          username: ((rdke-github-enterprise.username))
+          password: ((rdke-github-enterprise.password))
+        
+      inputs:
+      - name: pull-request
+
+      run:
+        path: /bin/sh
+        args:
+          - -exc
+          - |
+            cd pull-request
+            ls
+            ./test/run_ut.sh
+            ls /tmp/Gtest_Report/
+
+    on_failure:
+      put: pull-request
+      params:
+        context: ci-verification
+        path: pull-request
+        status: failure
+      
+    on_success:
+      put: pull-request
+      params:
+        context: ci-verification
+        path: pull-request
+        status: success
+    
+

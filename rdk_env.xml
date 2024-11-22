@@ -1,0 +1,9 @@
+<environment>
+  <components>
+    <libsyswrapper>
+      <dependencies>sdk,rdklogger,curl,openssl,sysint</dependencies>
+      <is_coverity_supported>True</is_coverity_supported>
+      <arguments>-v</arguments>
+    </libsyswrapper>
+  </components>
+</environment>
