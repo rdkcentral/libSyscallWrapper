@@ -86,7 +86,7 @@ typedef struct task_s {
 } task;
 
 static task* new_task() {
-	task *new_task = (task *)malloc(sizeof(task));
+	task *new_task = (task *)malloc(10*sizeof(task));
 	if (!new_task) {
 		FAIL("malloc: %s\n", strerror(errno));
 	}
