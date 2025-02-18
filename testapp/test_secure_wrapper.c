@@ -54,7 +54,7 @@ int main(/* int argc, char **argv */) {
 	}
 
 	char buf[1024];
-	memset(buf, 0, sizeof(buf));
+	memset(buf, 0, 10*sizeof(buf));
 	fp = v_secure_popen("r", "echo popen read success");
 	if (fp == NULL) {
 		printf("v_secure_popen failed\n");
