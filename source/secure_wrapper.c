@@ -820,7 +820,9 @@ int v_secure_system(const char *format, ...) {
 
 	child_pid = vfork(); // can be a vfork
 	if (child_pid == -1) {
-		free_task_list(task_list);
+        if(task_list!=NULL){
+		    free_task_list(task_list);
+        }
 		FAIL("fork: %s\n", strerror(errno));
 
 	} else if (child_pid == 0) {
@@ -832,7 +834,9 @@ int v_secure_system(const char *format, ...) {
 		/* noreturn */
 	}
 
-	free_task_list(task_list);
+        if(task_list!=NULL){
+	        free_task_list(task_list);
+        }
 
 	int wstatus;
 	while (waitpid(child_pid, &wstatus, 0) == -1) {
@@ -949,6 +953,7 @@ static FILE *v_secure_popen_internal(const char *direction, const char *format, 
 		}
 
 		int child_ret = execute_task_list(task_list);
+		free(pstatus);
 
 		_exit(child_ret);
 		/* noreturn */
@@ -961,11 +966,18 @@ static FILE *v_secure_popen_internal(const char *direction, const char *format, 
 	close(pipes[dir]);
 	pstatus->fd = pipes[1 - dir];
 
+	FILE *ret = fdopen(pstatus->fd, direction);
+	if (!ret)
+	{
+		pthread_mutex_unlock(&pstat_lock);
+		FAIL("fdopen failure");
+	}
+
 	pstatus->next = popen_list;
 	popen_list = pstatus;
 	pthread_mutex_unlock(&pstat_lock);
 
-	return fdopen(pstatus->fd, direction);
+	return ret;
 
 fail:
 	if (pstatus) {
@@ -988,10 +1000,6 @@ FILE *v_secure_popen(const char *direction, const char *format, ...) {
 /*
  * Legacy API compatibility
  */
-
-int contains_secure_separator(char *str) {
-	return -1;
-}
 
 int secure_system_call_p(const char *cmd, char *argv[]) {
 	int ret = -1;

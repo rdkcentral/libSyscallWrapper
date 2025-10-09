@@ -97,12 +97,6 @@ int v_secure_pclose(FILE *);
 
 extern int system(const char *command) __attribute__((warning("please replace system() with v_secure_system()")));
 
-__attribute__((deprecated))
-__attribute__((warning("contains_secure_separator is obsolete")))
-static inline int contains_secure_separator(__attribute__((unused)) char *str) {
-	return 0;
-}
-
 extern int secure_system_call_p(const char *cmd, char *argv[]);
 extern int secure_system_call_vp(const char *cmd, ...);
 
