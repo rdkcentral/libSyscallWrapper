@@ -2,8 +2,8 @@
 name: Unit Tests
 
 on:
-  pull_request:
-    branches: [ develop ]
+  push:
+    branches: [ topic/RDKEMW-8177 ]
 
 env:
   AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME }}

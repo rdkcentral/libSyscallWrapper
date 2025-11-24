@@ -16,9 +16,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ##########################################################################
-AM_CXXFLAGS = -std=c++14 -DGTEST_ENABLE
-
-AM_CFLAGS = -DGTEST_ENABLE
+AM_CXXFLAGS = -std=c++14 -DGTEST_ENABLE -fprofile-arcs -ftest-coverage -O0 -g
+AM_CFLAGS = -DGTEST_ENABLE -fprofile-arcs -ftest-coverage -O0 -g
+AM_LDFLAGS = -fprofile-arcs -ftest-coverage
 
 AUTOMAKE_OPTIONS = subdir-objects
 
