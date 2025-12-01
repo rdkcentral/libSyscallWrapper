@@ -1,4 +1,6 @@
 name: L2 Integration Tests for libSyscallWrapper
+permissions:
+  contents: read
 
 on:
   pull_request:
