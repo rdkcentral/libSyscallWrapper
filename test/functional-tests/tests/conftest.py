@@ -2,15 +2,16 @@ import os
 import subprocess
 import pytest
 
-LIB_BINARY = os.environ.get("SYSWRAP_BIN", os.path.join(os.getcwd(), "syswrapper_l2_helper"))
+LIB_BINARY = os.environ.get("SYSWRAP_BIN")
+if not LIB_BINARY:
+    raise RuntimeError("SYSWRAP_BIN is not set!")
 
-def run_cmd(cmd):
-    return subprocess.call(cmd, shell=True)
+def run_cmd_list(args):
+    return subprocess.call(args)
 
-def popen_cmd(cmd):
+def popen_cmd_list(args):
     return subprocess.Popen(
-        cmd,
-        shell=True,
+        args,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,

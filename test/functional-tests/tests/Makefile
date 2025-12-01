@@ -8,7 +8,7 @@ SRC = syswrapper_l2_helper.c
 all: $(TARGET)
 
 $(TARGET): $(SRC)
-        $(CC) $(CFLAGS) -o $@ $(SRC) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(SRC) $(LDFLAGS)
 
 clean:
-        rm -f $(TARGET) *.o
+	rm -f $(TARGET) *.o

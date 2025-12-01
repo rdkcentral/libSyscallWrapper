@@ -24,6 +24,7 @@ make
 # Step 2: Build L2 helper binary
 ###############################################################################
 echo "===== Building L2 helper binary ====="
+export SYSWRAP_BIN="$top_srcdir/test/functional-tests/tests/syswrapper_l2_helper"
 cd test/functional-tests/tests
 make clean
 make
