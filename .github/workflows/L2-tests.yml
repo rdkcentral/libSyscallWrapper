@@ -1,0 +1,99 @@
+name: L2 Integration Tests for libSyscallWrapper
+
+on:
+  pull_request:
+    branches: [ develop ]
+
+env:
+  AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME }}
+  AUTOMATICS_PASSCODE: ${{ secrets.AUTOMATICS_PASSCODE }}
+
+jobs:
+  execute-l2-tests-on-pr:
+    name: Execute libSyscallWrapper L2 Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    # --------------------------------------------------
+    # Checkout source
+    # --------------------------------------------------
+    - name: Checkout libSyscallWrapper Code
+      uses: actions/checkout@v4
+
+    # --------------------------------------------------
+    # Docker authentication
+    # --------------------------------------------------
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    # --------------------------------------------------
+    # Pull required images
+    # --------------------------------------------------
+    - name: Pull Native Platform and CI Images
+      run: |
+        docker pull ghcr.io/rdkcentral/docker-device-mgt-service-test/native-platform:latest
+        docker pull ghcr.io/rdkcentral/docker-rdk-ci:latest
+
+    # --------------------------------------------------
+    # Start Native Platform container
+    # --------------------------------------------------
+    - name: Start Native Platform Container
+      run: |
+        docker run -d --name native-platform \
+          -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME \
+          ghcr.io/rdkcentral/docker-device-mgt-service-test/native-platform:latest
+
+    # --------------------------------------------------
+    # Build component + run L2
+    # --------------------------------------------------
+    - name: Build libSyscallWrapper and Run L2 Tests
+      run: |
+        docker exec -i native-platform /bin/bash -c "
+          set -e
+          cd /mnt/L2_CONTAINER_SHARED_VOLUME
+          autoreconf -fi
+          ./configure
+          make -j$(nproc)
+          export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/local/lib:/usr/lib
+          cd test
+          sh run_l2.sh
+        "
+
+    # --------------------------------------------------
+    # Collect L2 results
+    # --------------------------------------------------
+    - name: Copy L2 Test Results to Host
+      run: |
+        docker cp native-platform:/tmp/libsyswrapper_l2_report /tmp/L2_TEST_RESULTS
+        ls -l /tmp/L2_TEST_RESULTS
+
+    # --------------------------------------------------
+    # Start RDK CI container for Automatics upload
+    # --------------------------------------------------
+    - name: Start RDK CI Container
+      if: github.repository_owner == 'rdkcentral'
+      run: |
+        docker run -d --name ci-container \
+          -e AUTOMATICS_UNAME=${{ secrets.AUTOMATICS_UNAME }} \
+          -e AUTOMATICS_PASSCODE=${{ secrets.AUTOMATICS_PASSCODE }} \
+          -v /tmp/L2_TEST_RESULTS:/tmp/L2_TEST_RESULTS \
+          ghcr.io/rdkcentral/docker-rdk-ci:latest \
+          tail -f /dev/null
+
+    # --------------------------------------------------
+    # Upload results to Automatics
+    # --------------------------------------------------
+    - name: Upload L2 Results to Automatics
+      if: github.repository_owner == 'rdkcentral'
+      run: |
+        docker exec -i ci-container bash -c "
+          ls -l /tmp/L2_TEST_RESULTS
+          gtest-json-result-push.py \
+            /tmp/L2_TEST_RESULTS \
+            https://rdkeorchestrationservice.apps.cloud.comcast.net/rdke_orchestration_api/push_unit_test_results \
+            /mnt/L2_CONTAINER_SHARED_VOLUME
+        "
