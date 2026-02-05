@@ -43,7 +43,7 @@
 #  define LOG_LIB 0
 #endif
 
-#define MAX_ARG_LEN 1024
+#define MAX_ARG_LEN 2048
 #define MAX_NUM_ARGS 512
 #define MAX_NUM_CMDS 32
 
