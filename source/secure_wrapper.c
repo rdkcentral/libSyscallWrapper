@@ -869,9 +869,9 @@ pstatus_t *popen_list = NULL;
 static pthread_mutex_t  pstat_lock = PTHREAD_MUTEX_INITIALIZER;
 int v_secure_pclose(FILE *stream) {
 	int fd = fileno(stream);
+	pthread_mutex_lock(&pstat_lock);
 	pstatus_t *pstatus, **pp = &popen_list;
 
-	pthread_mutex_lock(&pstat_lock);
 	while (*pp && (*pp)->fd != fd) {
 		pp = &(*pp)->next;
 	}
