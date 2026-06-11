@@ -16,58 +16,106 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
 */
-
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
 #include <string.h>
 #include "secure_wrapper.h"
 
-int main(/* int argc, char **argv */) {
+#define TEST_ARP_CACHE_FILE "/tmp/arp_cache_test"
+#define DEFAULT_IFACE "brlan0"
+#define DEFAULT_ITERATIONS 1000
 
-	v_secure_system("echo %s %s %s %s", "1", "2", "3", "4");
-	v_secure_system("echo %d `echo %d` %d %d", 1, 2, 3, 4);
+static void check_zombie_processes(int iter)
+{
+    printf("\n[DEBUG] Iteration %d: Checking zombie processes\n", iter);
+    fflush(stdout);
 
-	v_secure_system("echo -n TEST01:; echo %s", "PASS");
-	v_secure_system("echo -n TEST02:; true  && echo PASS");
-	v_secure_system("echo -n TEST03:; false || echo PASS");
-	v_secure_system("echo -n TEST04:; true  && echo PASS || echo FAIL");
-	v_secure_system("echo -n TEST05:; echo PASS | grep PASS || echo FAIL");
-	v_secure_system("echo -n TEST06:; false && echo FAIL1 | echo FAIL2 || echo PASS");
-	v_secure_system("echo -n TEST07:; true  || echo FAIL1 | echo FAIL2 && echo PASS");
-	v_secure_system("echo -n TEST08:; echo FAIL  >/dev/null | grep FAIL || echo PASS");
-	v_secure_system("echo -n TEST09:; echo FAIL &>/dev/null | grep FAIL || echo PASS");
-	v_secure_system("echo -n TEST10:; ./FAIL 2>/dev/null || echo PASS");
-	v_secure_system("echo -n TEST11:; ./FAIL 2>&1 | grep FAIL >/dev/null && echo PASS");
-	v_secure_system("echo    TEST12:PASS > ./testfile; cat testfile");
-	v_secure_system("echo -n TEST13: > ./testfile; echo PASS >> testfile; cat < testfile");
-	v_secure_system("echo    TEST14:`echo FAIL >/dev/null; echo PASS`");
-	v_secure_system("echo -n TEST15:; echo %s`echo %s`%s | grep %s >/dev/null && echo PASS || echo FAIL", "1%s", "2%s", "3%s", "1%s2%s3%s");
-	v_secure_system("echo    TEST16:`%s 2>/dev/null || echo PASS`;", "echo FAIL");
+    system("ps -ww | grep ' Z ' | grep -v grep");
+    system("ps -ww | grep '\\[ip\\]' | grep -v grep");
 
-	// security checks
-	//v_secure_system("echo -n TESTxx:; echo FAIL >%s || echo PASS", "/dev/null");
+    printf("[DEBUG] Zombie check completed\n\n");
+    fflush(stdout);
+}
 
-	FILE *fp = v_secure_popen("w", "cat");
-	if (fp != NULL) { // CID 109143 : Dereference null return value (NULL_RETURNS)
-        	fprintf(fp, "popen write success\n");
-		v_secure_pclose(fp);
-	}
+static void run_ipv4_cmd(const char *iface, int iter)
+{
+    int ret = -1;
 
-	char buf[1024];
-	memset(buf, 0, sizeof(buf));
-	fp = v_secure_popen("r", "echo popen read success");
-	if (fp == NULL) {
-		printf("v_secure_popen failed\n");
-	} else {
-		if (fgets(buf, sizeof(buf), fp) == NULL) {
-		    printf("v_secure_popen read error\n");
-		} else {
-		    printf("%s", buf);
-		}
-		v_secure_pclose(fp);
-	}
+    printf("[DEBUG] Iteration %d: Running IPv4 command for iface=%s\n", iter, iface);
+    fflush(stdout);
 
-	secure_system_call_vp("echo", "legacy", "api", "PASS", NULL);
+    ret = v_secure_system(
+        "ip -4 nei show | grep %s | grep -v 192.168.10 > " TEST_ARP_CACHE_FILE,
+        iface
+    );
 
-	return 0;
+    printf("[DEBUG] Iteration %d: IPv4 v_secure_system ret=%d errno=%d (%s)\n",
+           iter, ret, errno, strerror(errno));
+    fflush(stdout);
+}
+
+static void run_ipv6_cmd(const char *iface, int iter)
+{
+    int ret = -1;
+
+    printf("[DEBUG] Iteration %d: Running IPv6 command for iface=%s\n", iter, iface);
+    fflush(stdout);
+
+    ret = v_secure_system(
+        "ip -6 nei show | grep %s | egrep -v '^(fc|fd)' >> " TEST_ARP_CACHE_FILE,
+        iface
+    );
+
+    printf("[DEBUG] Iteration %d: IPv6 v_secure_system ret=%d errno=%d (%s)\n",
+           iter, ret, errno, strerror(errno));
+    fflush(stdout);
+}
+
+int main(int argc, char *argv[])
+{
+    const char *iface = DEFAULT_IFACE;
+    int iterations = DEFAULT_ITERATIONS;
+    int i = 0;
+
+    if (argc > 1) {
+        iface = argv[1];
+    }
+
+    if (argc > 2) {
+        iterations = atoi(argv[2]);
+        if (iterations <= 0) {
+            iterations = DEFAULT_ITERATIONS;
+        }
+    }
+
+    printf("=============================================\n");
+    printf("libSyscallWrapper ip pipeline zombie test\n");
+    printf("Interface  : %s\n", iface);
+    printf("Iterations : %d\n", iterations);
+    printf("Output file: %s\n", TEST_ARP_CACHE_FILE);
+    printf("=============================================\n");
+
+    unlink(TEST_ARP_CACHE_FILE);
+
+    check_zombie_processes(0);
+
+    for (i = 1; i <= iterations; i++) {
+        unlink(TEST_ARP_CACHE_FILE);
+
+        run_ipv4_cmd(iface, i);
+        run_ipv6_cmd(iface, i);
+
+        if (i % 10 == 0) {
+            check_zombie_processes(i);
+        }
+
+        usleep(100000); /* 100 ms gap */
+    }
+
+    check_zombie_processes(iterations);
+
+    printf("Test completed\n");
+    return 0;
 }
