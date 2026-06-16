@@ -29,11 +29,20 @@
 
 static void check_zombie_processes(int iter)
 {
+    int ret = -1;
+
     printf("\n[DEBUG] Iteration %d: Checking zombie processes\n", iter);
     fflush(stdout);
 
-    system("ps -ww | grep ' Z ' | grep -v grep");
-    system("ps -ww | grep '\\[ip\\]' | grep -v grep");
+    ret = v_secure_system("ps -ww | grep %s | grep -v grep", " Z ");
+    printf("[DEBUG] zombie process check ret=%d errno=%d (%s)\n",
+           ret, errno, strerror(errno));
+    fflush(stdout);
+
+    ret = v_secure_system("ps -ww | grep %s | grep -v grep", "[ip]");
+    printf("[DEBUG] [ip] process check ret=%d errno=%d (%s)\n",
+           ret, errno, strerror(errno));
+    fflush(stdout);
 
     printf("[DEBUG] Zombie check completed\n\n");
     fflush(stdout);
@@ -43,6 +52,7 @@ static void run_ipv4_cmd(const char *iface, int iter)
 {
     int ret = -1;
 
+    errno = 0;
     printf("[DEBUG] Iteration %d: Running IPv4 command for iface=%s\n", iter, iface);
     fflush(stdout);
 
@@ -60,6 +70,7 @@ static void run_ipv6_cmd(const char *iface, int iter)
 {
     int ret = -1;
 
+    errno = 0;
     printf("[DEBUG] Iteration %d: Running IPv6 command for iface=%s\n", iter, iface);
     fflush(stdout);
 
@@ -96,6 +107,7 @@ int main(int argc, char *argv[])
     printf("Iterations : %d\n", iterations);
     printf("Output file: %s\n", TEST_ARP_CACHE_FILE);
     printf("=============================================\n");
+    fflush(stdout);
 
     unlink(TEST_ARP_CACHE_FILE);
 
@@ -111,11 +123,13 @@ int main(int argc, char *argv[])
             check_zombie_processes(i);
         }
 
-        usleep(100000); /* 100 ms gap */
+        sleep(1);
     }
 
     check_zombie_processes(iterations);
 
     printf("Test completed\n");
+    fflush(stdout);
+
     return 0;
 }
