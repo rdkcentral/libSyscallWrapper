@@ -43,8 +43,6 @@
 #  define LOG_LIB 0
 #endif
 
-#define LOG_FILE "/tmp/libsystrace.log"
-
 #define MAX_ARG_LEN 2048
 #define MAX_NUM_ARGS 512
 #define MAX_NUM_CMDS 32
@@ -621,16 +619,7 @@ static inline int execute_task_list(task **task_list);
 static int execute_task(task *current_task, int close_list[3]) {
 	char **argv = current_task->argv;
 	int ret = -1;
-    FILE *_fp = fopen (LOG_FILE, "a+");
-    if (current_task->subshell) {
-        fprintf(_fp, "DEBUG : Entering execute_task()\n");
-        fprintf(_fp, "DEBUG : if loop \n");
-    } else for (int n=0; current_task->argv[n]; n++) {
-	    if (_fp != NULL) {
-	        fprintf(_fp, "DEBUG : Entering execute_task()\n");
-            fprintf(_fp, "current_task arg%d: \"%s\"\n", n, current_task->argv[n]);
-		}
-    }
+
 #ifdef VERBOSE_DEBUG
 	if (current_task->subshell) {
 		RDK_LOG(RDK_LOG_INFO, LOG_LIB, "subshell\n");
@@ -661,10 +650,7 @@ static int execute_task(task *current_task, int close_list[3]) {
 		int wstatus;
 		while (waitpid(child_pid, &wstatus, 0) == -1) {
 			if (errno != EINTR){
-				fprintf(stderr, "child exited unexpectedly 1 %s\n", strerror(errno));
-				if (_fp != NULL) {
-                    fprintf(_fp, "DEBUG : child exited unexpectedly in 1st execute_task()  %s\n", strerror(errno));
-                }
+				fprintf(stderr, "child exited unexpectedly\n");
 				break;
 			}
 		}
@@ -701,10 +687,7 @@ static int execute_task(task *current_task, int close_list[3]) {
 		int wstatus;
 		while (waitpid(child_pid, &wstatus, 0) == -1) {
 			if (errno != EINTR){
-				fprintf(stderr, "child exited unexpectedly 2  %s\n", strerror(errno));
-                if (_fp != NULL) {
-                    fprintf(_fp, "DEBUG : child exited unexpectedly in 2nd execute_task()  %s\n", strerror(errno));
-                }
+				fprintf(stderr, "child exited unexpectedly\n");
 				ret = -1;
 				break;
 			}
@@ -719,9 +702,7 @@ fail:
 #ifdef VERBOSE_DEBUG
 	RDK_LOG(RDK_LOG_INFO, LOG_LIB, "ret: %d\n", ret);
 #endif
-    if (_fp != NULL)
-	    fprintf (_fp, "DEBUG : execute_task ret: %d\n", ret);
-        fclose(_fp);
+
 	return ret;
 }
 
@@ -818,18 +799,7 @@ static task ** v_secure_system_internal(const char *format, va_list *ap) {
 	RDK_LOG(RDK_LOG_INFO, LOG_LIB, "wrapper command: %s\n", cmd_log);
 	va_end(ap_log);
 #endif
-    FILE *_fp = fopen (LOG_FILE, "a+");
 
-	va_copy(ap_log, *ap);
-	vsnprintf(cmd_log, sizeof(cmd_log), format, ap_log);
-	cmd_log[sizeof(cmd_log)-1] = '\0';
-
-  	if (_fp != NULL) {
-		fprintf (_fp, "wrapper template: %s\n", format);
-        fprintf (_fp, "wrapper command: %s\n", cmd_log);
-    }
-	va_end(ap_log);
-    fclose(_fp);
 	return command_parser(format, ap).task_list;
 }
 
@@ -837,7 +807,7 @@ int v_secure_system(const char *format, ...) {
 	int ret = -1;
 	pid_t child_pid = 0; // CID 178415 : Branch past initialization (PW.BRANCH_PAST_INITIALIZATION)
 	task **task_list;
-    FILE *_fp = fopen (LOG_FILE, "a+");
+
 	va_list ap;
 	va_start(ap, format);
 	task_list = v_secure_system_internal(format, &ap);
@@ -871,10 +841,7 @@ int v_secure_system(const char *format, ...) {
 	int wstatus;
 	while (waitpid(child_pid, &wstatus, 0) == -1) {
 		if (errno != EINTR){
-			fprintf(stderr, "child exited unexpectedly 3  %s\n", strerror(errno));
-            if (_fp != NULL) {
-                fprintf(_fp, "DEBUG : child exited unexpectedly in v_secure_system()  %s\n", strerror(errno));
-            }
+			fprintf(stderr, "child exited unexpectedly\n");
 			break;
 		}
 	}
@@ -882,7 +849,7 @@ int v_secure_system(const char *format, ...) {
 	if (WIFEXITED(wstatus)) {
 		ret = WEXITSTATUS(wstatus);
 	}
-    fclose(_fp);
+
 fail:
 	return ret;
 }
@@ -902,7 +869,6 @@ pstatus_t *popen_list = NULL;
 static pthread_mutex_t  pstat_lock = PTHREAD_MUTEX_INITIALIZER;
 int v_secure_pclose(FILE *stream) {
 	int fd = fileno(stream);
-	FILE *_fp = fopen (LOG_FILE, "a+");
 	pthread_mutex_lock(&pstat_lock);
 	pstatus_t *pstatus, **pp = &popen_list;
 
@@ -925,10 +891,7 @@ int v_secure_pclose(FILE *stream) {
 	int wstatus;
 	while (waitpid(pstatus->pid, &wstatus, 0) == -1) {
 		if (errno != EINTR){
-			fprintf(stderr, "child exited unexpectedly  4  %s\n", strerror(errno));
-            if (_fp != NULL) {
-                fprintf(_fp, "DEBUG : child exited unexpectedly in v_secure_pclose()  %s\n", strerror(errno));
-            }
+			fprintf(stderr, "child exited unexpectedly\n");
 			break;
 		}
 	}
@@ -942,7 +905,6 @@ int v_secure_pclose(FILE *stream) {
 	free(pstatus);
 
 	return ret;
-	fclose(_fp);
 }
 
 static FILE *v_secure_popen_internal(const char *direction, const char *format, va_list *ap) {
