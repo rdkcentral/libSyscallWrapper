@@ -884,6 +884,15 @@ int v_secure_pclose(FILE *stream) {
 		return -1;
 	}
 
+    /* Remove from popen_list while holding the lock so that any child
+	 * forked by a concurrent v_secure_popen does not see this entry and
+	 * try to close an fd we are about to fclose ourselves.               */
+	(*pp) = pstatus->next;
+	pthread_mutex_unlock(&pstat_lock);
+
+	/* fclose and waitpid are outside the lock: these can block for an
+	 * arbitrary duration (child still running) and must not serialize
+	 * concurrent v_secure_popen / v_secure_pclose calls in other threads. */
 	int ret = -1;
 
 	fclose(stream);
@@ -900,8 +909,6 @@ int v_secure_pclose(FILE *stream) {
 		ret = WEXITSTATUS(wstatus);
 	}
 
-	(*pp) = pstatus->next;
-	pthread_mutex_unlock(&pstat_lock);
 	free(pstatus);
 
 	return ret;
@@ -918,19 +925,27 @@ static FILE *v_secure_popen_internal(const char *direction, const char *format, 
 		FAIL("malloc: %s\n", strerror(errno));
 	}
 
-	if (pipe(pipes) == -1) {
-		FAIL("pipe: %s\n", strerror(errno));
-	}
-
 	task_list = v_secure_system_internal(format, ap);
 	if (!task_list) {
-                close(pipes[0]);
-                close(pipes[1]);
 		FAIL("shell failure");
-
 	}
 
 	pthread_mutex_lock(&pstat_lock);
+
+    /* pipe() inside the lock: guarantees no concurrent v_secure_popen call
+     * can have an open write-end that our child would inherit.  Before this
+     * fix, pipe() was called before the lock, so another thread's write-end
+     * was an open fd at fork() time; the child inherited it and kept the
+     * pipe alive, causing that thread's fgets() to hang until our child
+     * exited.  With pipe() inside the lock, by the time we fork(), every
+     * other thread's pipe is already registered in popen_list and the child
+     * closes it in the loop below.                                         */
+     if (pipe(pipes) == -1) {
+         free_task_list(task_list);
+         pthread_mutex_unlock(&pstat_lock);
+         FAIL("pipe: %s\n", strerror(errno));
+	 }
+
 	child_pid = fork();
 	if (child_pid == -1) {
 		close(pipes[0]);
