@@ -975,8 +975,13 @@ static FILE *v_secure_popen_internal(const char *direction, const char *format, 
 		FAIL("fork: %s\n", strerror(errno));
 
 	} else if (child_pid == 0) {
-		fflush(stdout);
-		fflush(stderr);
+		/* Do NOT fflush(stdout/stderr) here.
+		 * On uclibc/musl, FILE internal mutexes are NOT reset after
+		 * fork().  If any thread holds stdout's FILE lock at the moment
+		 * of fork() (e.g. a logger mid-write), the child inherits it
+		 * locked.  fflush() tries to re-acquire that lock -> deadlock.
+		 * The child immediately redirects stdout/stderr via dup2 below,
+		 * so flushing the inherited buffers serves no purpose anyway. */
 
 		close(dir);
 		close(pipes[1 - dir]);
