@@ -861,6 +861,7 @@ fail:
 typedef struct pstatus_t {
 	int fd;
 	int pid;
+	int write_end; /* 1 if fd is the write-end of the pipe ("w" mode), 0 for read-end */
 	struct pstatus_t *next;
 } pstatus_t;
 
@@ -880,13 +881,39 @@ int v_secure_pclose(FILE *stream) {
 
 	if (!pstatus) {
 		fprintf(stderr, "pclose failed to find fd\n");
-	        pthread_mutex_unlock(&pstat_lock);
+		pthread_mutex_unlock(&pstat_lock);
 		return -1;
 	}
 
+	/* Remove from popen_list while holding the lock. */
+	(*pp) = pstatus->next;
+	int write_end = pstatus->write_end;
+
+	/* For write-mode streams pstatus->fd is the write-end of the pipe.
+	 * Releasing the lock before fclose() creates a race: a concurrent
+	 * v_secure_popen() could fork() a child that inherits this write-end
+	 * while it is no longer in popen_list (so the child's cleanup loop
+	 * won't close it).  That inherited write-end keeps the child's stdin
+	 * pipe alive, preventing EOF and hanging waitpid().
+	 *
+	 * Fix: hold the lock through fclose() for write-ends only, so no
+	 * concurrent fork() can happen while the untracked write-end is open.
+	 *
+	 * For read-mode streams pstatus->fd is the read-end.  A concurrent
+	 * child inheriting an extra read-end is harmless — extra readers do
+	 * not prevent the writer (our child C1) from exiting — so the lock
+	 * can be released early to avoid serialising popen calls. */
+	if (!write_end)
+		pthread_mutex_unlock(&pstat_lock);
+
+	/* fclose is inside the lock for write-ends, outside for read-ends.
+	 * waitpid is always outside the lock (may block for seconds). */
 	int ret = -1;
 
 	fclose(stream);
+
+	if (write_end)
+		pthread_mutex_unlock(&pstat_lock);
 
 	int wstatus;
 	while (waitpid(pstatus->pid, &wstatus, 0) == -1) {
@@ -900,8 +927,6 @@ int v_secure_pclose(FILE *stream) {
 		ret = WEXITSTATUS(wstatus);
 	}
 
-	(*pp) = pstatus->next;
-	pthread_mutex_unlock(&pstat_lock);
 	free(pstatus);
 
 	return ret;
@@ -918,19 +943,29 @@ static FILE *v_secure_popen_internal(const char *direction, const char *format, 
 		FAIL("malloc: %s\n", strerror(errno));
 	}
 
-	if (pipe(pipes) == -1) {
-		FAIL("pipe: %s\n", strerror(errno));
-	}
-
+	/* Parse before locking: the parser may call v_secure_popen recursively
+	 * (backtick eval), which would deadlock if pstat_lock were held. */
 	task_list = v_secure_system_internal(format, ap);
 	if (!task_list) {
-                close(pipes[0]);
-                close(pipes[1]);
 		FAIL("shell failure");
-
 	}
 
 	pthread_mutex_lock(&pstat_lock);
+
+	/* pipe() inside the lock: guarantees no concurrent v_secure_popen call
+	 * can have an open write-end that our child would inherit.  Before this
+	 * fix, pipe() was called before the lock, so another thread's write-end
+	 * was an open fd at fork() time; the child inherited it and kept the
+	 * pipe alive, causing that thread's fgets() to hang until our child
+	 * exited.  With pipe() inside the lock, by the time we fork(), every
+	 * other thread's pipe is already registered in popen_list and the child
+	 * closes it in the loop below.                                         */
+	if (pipe(pipes) == -1) {
+		free_task_list(task_list);
+		pthread_mutex_unlock(&pstat_lock);
+		FAIL("pipe: %s\n", strerror(errno));
+	}
+
 	child_pid = fork();
 	if (child_pid == -1) {
 		close(pipes[0]);
@@ -940,8 +975,13 @@ static FILE *v_secure_popen_internal(const char *direction, const char *format, 
 		FAIL("fork: %s\n", strerror(errno));
 
 	} else if (child_pid == 0) {
-		fflush(stdout);
-		fflush(stderr);
+		/* Do NOT fflush(stdout/stderr) here.
+		 * On uclibc/musl, FILE internal mutexes are NOT reset after
+		 * fork().  If any thread holds stdout's FILE lock at the moment
+		 * of fork() (e.g. a logger mid-write), the child inherits it
+		 * locked.  fflush() tries to re-acquire that lock -> deadlock.
+		 * The child immediately redirects stdout/stderr via dup2 below,
+		 * so flushing the inherited buffers serves no purpose anyway. */
 
 		close(dir);
 		close(pipes[1 - dir]);
@@ -965,6 +1005,8 @@ static FILE *v_secure_popen_internal(const char *direction, const char *format, 
 
 	close(pipes[dir]);
 	pstatus->fd = pipes[1 - dir];
+	/* dir==0 means "w" mode: parent holds the write-end (pipes[1]).     */
+	pstatus->write_end = (dir == 0);
 
 	FILE *ret = fdopen(pstatus->fd, direction);
 	if (!ret)
