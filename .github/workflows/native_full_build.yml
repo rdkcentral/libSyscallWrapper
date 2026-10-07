@@ -1,0 +1,26 @@
+name: Build Component in Native Environment
+
+on:
+  push:
+    branches: [ main, 'sprint/**', 'release/**', develop ]
+  pull_request:
+    branches: [ main, 'sprint/**', 'release/**', topic/RDK*, develop ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-libsyswrapper-on-pr:
+    name: Build libsyswrapper component in github rdkcentral
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/rdkcentral/docker-rdk-ci:latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: native build
+        run: |
+          chmod +x cov_build.sh
+          ./cov_build.sh
