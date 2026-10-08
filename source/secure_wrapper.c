@@ -34,7 +34,7 @@
 
 #ifdef WITH_RDKLOGGER
 #  include "rdk_debug.h"
-//#  define VERBOSE_DEBUG
+#  define VERBOSE_DEBUG 1
 #  define LOG_LIB "LOG.RDK.LIBSYSCALLWRAPPER"
 #else
 #  define RDK_LOG(a1, a2, args...) //fprintf(stderr, args)
