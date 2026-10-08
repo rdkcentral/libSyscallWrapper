@@ -31,3 +31,33 @@ syswrapper_gtest_bin_CPPFLAGS = -I$(PKG_CONFIG_SYSROOT_DIR)/googletest/include/g
 syswrapper_gtest_bin_SOURCES = gtest_main.cpp  libsyswrapper_test.cpp ../secure_wrapper.c
 
 syswrapper_gtest_bin_LDFLAGS = -L/$(PKG_CONFIG_SYSROOT_DIR)/googletest/lib  -lgmock -lgtest -lpthread -lgcov -lgtest_main
+
+# Compile-time enforcement test for raw system()/popen()
+.PHONY: check_syscall_restriction
+
+check_syscall_restriction:
+	@echo "Checking that system() and popen() are rejected..."
+	@if $(CC) $(AM_CFLAGS) $(CFLAGS) \
+	    -include ${top_srcdir}/source/syscall_restriction.h \
+	    -I${top_srcdir}/source \
+	    -c ${srcdir}/test_syscall_restriction.c \
+	    -o test_syscall_restriction.o >/dev/null 2>&1; then \
+	    echo "ERROR: system()/popen() were not rejected"; \
+	    rm -f test_syscall_restriction.o; \
+	    exit 1; \
+	else \
+	    echo "PASS: system()/popen() were rejected"; \
+	fi
+
+# Compile-time validation that secure wrapper APIs remain allowed
+.PHONY: check_secure_wrapper_allowed
+
+check_secure_wrapper_allowed:
+	@echo "Checking that secure wrapper APIs are allowed..."
+	@$(CC) $(AM_CFLAGS) $(CFLAGS) \
+	    -include ${top_srcdir}/source/syscall_restriction.h \
+	    -I${top_srcdir}/source \
+	    -c ${srcdir}/test_secure_wrapper_allowed.c \
+	    -o test_secure_wrapper_allowed.o
+	@rm -f test_secure_wrapper_allowed.o
+	@echo "PASS: secure wrapper APIs are allowed"
