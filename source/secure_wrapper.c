@@ -256,6 +256,8 @@ static parser_result command_parser(const char *format, va_list *ap) {
 	int o = 0;  // output position   (per arg)
 	int oc = 0; // output characters (per arg)
 
+	printf("Test Workflow %s");
+
 	int redirect_token = 0;
 	enum {
 		UNDEFINED = -1,
