@@ -140,6 +140,7 @@ static void free_task_list(task **task_list) {
 }
 
 static int fd_ops_addopen(task *task, int fd, const char *restrict path, int flags, mode_t mode) {
+	if (!task || !path) return EINVAL;
 	struct fd_ops_t *op = malloc(sizeof *op + strlen(path) + 1);
 	if (!op) return ENOMEM;
 
@@ -147,7 +148,8 @@ static int fd_ops_addopen(task *task, int fd, const char *restrict path, int fla
 	op->fd = fd;
 	op->oflag = flags;
 	op->mode = mode;
-	strcpy(op->path, path); // CID 178401 : Calling risky function (DC.STRING_BUFFER)-False positive
+	/* coverity[DC.STRING_BUFFER] INTENTIONAL: CID 178401, allocation reserves strlen(path) + 1 bytes. */
+	strcpy(op->path, path);
 	if ((op->next = task->fd_ops)) op->next->prev = op;
 	op->prev = 0;
 	task->fd_ops = op;
@@ -155,6 +157,7 @@ static int fd_ops_addopen(task *task, int fd, const char *restrict path, int fla
 }
 
 static int fd_ops_addclose(task *task, int fd) {
+	if (!task) return EINVAL;
 	struct fd_ops_t *op = malloc(sizeof *op);
 	if (!op) return ENOMEM;
 
@@ -167,6 +170,7 @@ static int fd_ops_addclose(task *task, int fd) {
 }
 
 static int fd_ops_adddup2(task *task, int srcfd, int fd) {
+	if (!task) return EINVAL;
 	struct fd_ops_t *op = malloc(sizeof *op);
 	if (!op) return ENOMEM;
 
