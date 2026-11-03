@@ -40,7 +40,7 @@ EXTRA_DIST = test_system_forbidden.c \
     test_secure_wrapper_allowed.c
 
 check-local:
-    @set -eu; \
+	@set -eu; \
     tmpdir=.syscall-restriction-check; \
     mkdir -p "$$tmpdir"; \
     trap 'rm -rf "$$tmpdir"' 0 1 2 3 15; \
