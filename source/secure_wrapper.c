@@ -31,6 +31,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <stdint.h>
 
 #ifdef WITH_RDKLOGGER
 #  include "rdk_debug.h"
@@ -140,16 +141,26 @@ static void free_task_list(task **task_list) {
 }
 
 static int fd_ops_addopen(task *task, int fd, const char *restrict path, int flags, mode_t mode) {
-	struct fd_ops_t *op = malloc(sizeof *op + strlen(path) + 1);
+	size_t path_len;
+	struct fd_ops_t *op;
+	struct fd_ops_t *next;
+
+	if (path == NULL) return EINVAL;
+	path_len = strlen(path);
+	if (path_len > SIZE_MAX - sizeof(*op) - 1) return ENOMEM;
+
+	op = malloc(sizeof(*op) + path_len + 1);
 	if (!op) return ENOMEM;
 
 	op->cmd = FD_OPS_OPEN;
 	op->fd = fd;
 	op->oflag = flags;
 	op->mode = mode;
-	strcpy(op->path, path); // CID 178401 : Calling risky function (DC.STRING_BUFFER)-False positive
-	if ((op->next = task->fd_ops)) op->next->prev = op;
-	op->prev = 0;
+	memcpy(op->path, path, path_len + 1);
+	next = task->fd_ops;
+	op->next = next;
+	op->prev = NULL;
+	if (next != NULL) next->prev = op;
 	task->fd_ops = op;
 	return 0;
 }
@@ -160,8 +171,9 @@ static int fd_ops_addclose(task *task, int fd) {
 
 	op->cmd = FD_OPS_CLOSE;
 	op->fd = fd;
-	if ((op->next = task->fd_ops)) op->next->prev = op;
-	op->prev = 0;
+	op->next = task->fd_ops;
+	op->prev = NULL;
+	if (op->next != NULL) op->next->prev = op;
 	task->fd_ops = op;
 	return 0;
 }
@@ -173,8 +185,9 @@ static int fd_ops_adddup2(task *task, int srcfd, int fd) {
 	op->cmd = FD_OPS_DUP2;
 	op->srcfd = srcfd;
 	op->fd = fd;
-	if ((op->next = task->fd_ops)) op->next->prev = op;
-	op->prev = 0;
+	op->next = task->fd_ops;
+	op->prev = NULL;
+	if (op->next != NULL) op->next->prev = op;
 	task->fd_ops = op;
 	return 0;
 }
