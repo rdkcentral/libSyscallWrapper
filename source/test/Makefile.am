@@ -28,8 +28,7 @@ bin_PROGRAMS = syswrapper_gtest.bin
 
 syswrapper_gtest_bin_CPPFLAGS = -I$(PKG_CONFIG_SYSROOT_DIR)/googletest/include/gtest -I$(PKG_CONFIG_SYSROOT_DIR)/googletest/include/ -I$(PKG_CONFIG_SYSROOT_DIR)/googletest/googletest/include -I$(PKG_CONFIG_SYSROOT_DIR)/googletest/googlemock/include/ -I${top_srcdir}/source -I${top_srcdir}/source/include
 
-syswrapper_gtest_bin_CPPFLAGS += \
-	-include $(top_srcdir)/source/syscall_restriction.h
+syswrapper_gtest_bin_CPPFLAGS += -D_GNU_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -include $(top_srcdir)/source/syscall_restriction.h
 
 syswrapper_gtest_bin_SOURCES = gtest_main.cpp  libsyswrapper_test.cpp ../secure_wrapper.c
 

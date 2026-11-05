@@ -16,8 +16,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
 */
-#define _GNU_SOURCE
-#define _LARGEFILE64_SOURCE
 
 #include <stdio.h>
 #include <stdbool.h>
