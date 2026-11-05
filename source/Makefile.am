@@ -21,6 +21,7 @@ if  WITH_GTEST_SUPPORT
 SUBDIRS = test
 endif
 
+AM_CPPFLAGS = -D_GNU_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -include $(srcdir)/syscall_restriction.h
 AM_CFLAGS=$(RDKLOGGER_CFLAGS) $(TRACE_CFLAGS) -std=c99
 
 lib_LTLIBRARIES = libsecure_wrapper.la
@@ -28,7 +29,8 @@ libsecure_wrapper_la_SOURCES = secure_wrapper.c
 libsecure_wrapper_la_LDFLAGS =$(TRACE_LIBS) $(RDKLOGGER_LIBS)
 
 libsecure_wrapper_la_includedir = ${includedir}
-libsecure_wrapper_la_include_HEADERS = secure_wrapper.h 
+libsecure_wrapper_la_include_HEADERS = secure_wrapper.h \
+				       syscall_restriction.h
 
 AM_LDFLAGS = $(GLIB_LDFLAGS) $(GLIB_LIBS) \
 	$(G_THREAD_LIBS) -lrdkloggers $(LOG4C_LIBS) -lpthread -lcjson
