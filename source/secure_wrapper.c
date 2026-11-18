@@ -148,11 +148,11 @@ static int fd_ops_addopen(task *task, int fd, const char *restrict path, int fla
 	op->fd = fd;
 	op->oflag = flags;
 	op->mode = mode;
-	memcpy(op->path, path, strlen(path) + 1);
+	memcpy(op->path, path, strlen(path) + 1);  // CID 178401: replaced strcpy with an explicit-size copy.
 	head = task->fd_ops;
 	op->next = head;
 	op->prev = NULL;
-	if (head != NULL) {
+	if (head != NULL) { // CID 744472: Guard against NULL_FIELD dereference of the previous head.
        	head->prev = op;
 	}
 	task->fd_ops = op;
@@ -169,8 +169,8 @@ static int fd_ops_addclose(task *task, int fd) {
 	head = task->fd_ops;
 	op->next = head;
 	op->prev = NULL;
-	if (head != NULL) {
-		head->prev = op;
+	if (head != NULL) { //  CID 744746: Guard against NULL_FIELD dereference of the previous head.
+	    head->prev = op;
 	}
 	task->fd_ops = op;
 	return 0;
@@ -188,8 +188,8 @@ static int fd_ops_adddup2(task *task, int srcfd, int fd) {
 	head = task->fd_ops;
         op->next = head;
 	op->prev = NULL;
-	if (head != NULL) {
-	head->prev = op;
+	if (head != NULL) { // CID 744379 : Guard against NULL_FIELD dereference of the previous head.
+	   head->prev = op;
 	}
 	task->fd_ops = op;
 	return 0;
