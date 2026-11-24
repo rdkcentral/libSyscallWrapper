@@ -22,6 +22,7 @@
 
 #ifndef __SECURE_H
 #  define __SECURE_H
+#include "syscall_restriction.h"
 #  ifdef __cplusplus
 extern "C" {
 #  endif
@@ -95,7 +96,6 @@ int v_secure_pclose(FILE *);
                 ret; \
 	})
 
-extern int system(const char *command) __attribute__((warning("please replace system() with v_secure_system()")));
 
 extern int secure_system_call_p(const char *cmd, char *argv[]);
 extern int secure_system_call_vp(const char *cmd, ...);
